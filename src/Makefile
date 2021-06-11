@@ -50,6 +50,7 @@ OBJ_frag_guess_wfn = file_op.o string_manipulate.o read_fch.o util_wrapper.o \
                      mr_keyword.o do_hf.o rwwfn.o rwgeom.o read_gms_inp.o frag_guess_wfn.o
 OBJ_chk2py = chk2py.f90
 OBJ_fch2py = fch2py.f90
+OBJ_fch2qchem = file_op.o string_manipulate.o fch2qchem.f90 read_fch.o
 OBJ_find_mc_pair = file_op.o find_mc_pair.o
 OBJ_gvb_correct_pairs = string_manipulate.o rwwfn.o gvb_correct_pairs.o
 OBJ_gvb_sort_pairs = file_op.o gvb_sort_pairs.o
@@ -206,6 +207,9 @@ chk2py: $(OBJ_chk2py)
 fch2py: $(OBJ_fch2py)
 	$(F2PY) -c $(OBJ_fch2py) -m fch2py $(F2_FLAGS)
 	@mv fch2py*.so ../lib/
+
+fch2qchem: $(OBJ_fch2qchem)
+	$(F90) $(OBJ_fch2qchem) -o $(BIN)/fch2qchem $(FFLAGS)
 
 find_mc_pair: $(OBJ_find_mc_pair)
 	$(F90) $(OBJ_find_mc_pair) -o $(BIN)/find_mc_pair $(FFLAGS)
