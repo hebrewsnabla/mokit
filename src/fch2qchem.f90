@@ -85,7 +85,7 @@ subroutine fch2qchem(fchname)
 
 ! character(len=1) :: ab
 !f2py intent(in) :: ab
- logical :: uhf
+ logical :: uhf, sph
 ! character(len=8) :: key
 ! character(len=8), parameter :: key1 = 'Alpha MO'
 ! character(len=7), parameter :: key2 = 'Beta MO'
@@ -220,6 +220,19 @@ i = INDEX(fchname,'.fch',back=.true.)
  endif
 ! deallocate(shell2atom_map_)
 ! adjust done
+ ! check if any spherical functions
+ if(ANY(shell_type_<-1) .and. ANY(shell_type_>1)) then
+  write(iout,'(A)') 'ERROR in subroutine fch2inp: mixed spherical harmonic/&
+                   &Cartesian functions detected.'
+  write(iout,'(A)') 'You probably used a basis set like 6-31G(d) in Gaussian. Its&
+                   & default setting is (6D,7F).'
+  write(iout,'(A)') "You need to add '5D 7F' or '6D 10F' keywords in Gaussian."
+  stop
+ else if(ANY(shell_type_<-1)) then
+  sph = .true.
+ else
+  sph = .false.
+ end if
 
 ! then we adjust the basis functions in each MO according to the type of basis functions
  k = length  ! update k
@@ -358,7 +371,7 @@ endif
  close(10)
 
  inname = TRIM(base_qc)//'.in'
- call create_qchem_in(fchname, inname, charge, mult, natom, elem, coor, uhf, .true.)
+ call create_qchem_in(fchname, inname, charge, mult, natom, elem, coor, uhf, sph)
  ! Suppose environment var. QCSCRATCH = /tmp/qchem
  !system('mkdir /tmp/qchem/'//TRIM(base_qc))
  !system('cp '//TRIM(q53name)//' /tmp/qchem/'//TRIM(base_qc)//'/53.0')
@@ -366,6 +379,11 @@ endif
  ! e.g.  mkdir /tmp/qchem/test_qc
  !       cp test.q53 /tmp/qchem/test_qc/53.0
  !       qchem test_qc.in test_qc.out test_qc
+ if (.not. sph) then
+  write(iout,'(A)') 'Warning in subroutine fch2qchem: Cartesian basis &
+                   &convertion not implemented. $basis will be left blank.'
+  return
+ endif
  isys = system('fch2mkl '//TRIM(fchname))
  if(isys /= 0) then
   write(iout,'(A)') 'ERROR in subroutine fch2qchem: call fch2mkl failed.'
@@ -413,12 +431,12 @@ subroutine create_qchem_in(fchname, inname, charge, mult, natom, elem, coor, uhf
  write(fid, '(A)') ' print_orbitals = true' ! for debug
  write(fid, '(A)') ' sym_ignore = true'
  if (sph) then
-  write(fid, '(A)') ' purecart = 2222'
- else
   write(fid, '(A)') ' purecart = 1111'
+ else
+  write(fid, '(A)') ' purecart = 2222'
  endif
  write(fid, '(A)') ' scf_guess = read'
- write(fid, '(A)') ' thresh = 10'
+ write(fid, '(A)') ' thresh = 12'
  write(fid, '(A)') '$end'
  write(fid, '(A)') ' '
 
@@ -452,7 +470,7 @@ subroutine mkl2qbas(mklname, inname)
  write(fid,'(A)') '$basis'
  ! print basis set
  do i = 1, natom, 1
-  write(fid,'(I0,A2)') i, ' 0'
+  write(fid,'(A2,I5)') elem(i), i
   nc = all_pg(i)%nc
 
   do j = 1, nc, 1
@@ -664,7 +682,7 @@ subroutine fch2qchem_permute_6d(nif,coeff)
  use Sdiag_parameter, only: Sdiag_d
  implicit none
  integer :: i
- integer, parameter :: order(6) = [1, 4, 5, 2, 6, 3]
+ integer, parameter :: order(6) = [1, 4, 2, 5, 6, 3]
  integer, intent(in) :: nif
  real(kind=8), intent(inout) :: coeff(6,nif)
  real(kind=8), allocatable :: coeff2(:,:)
@@ -672,10 +690,10 @@ subroutine fch2qchem_permute_6d(nif,coeff)
 ! To: the order of Cartesian d functions in Q-Chem
 ! 1  2  3  4  5  6
 ! XX,YY,ZZ,XY,XZ,YZ
-! XX,XY,XZ,YY,YZ,ZZ
+! XX,XY,YY,XZ,YZ,ZZ
 
  allocate(coeff2(6,nif), source=coeff)
- forall(i = 1:6) coeff(i,:) = coeff2(order(i),:)/Sdiag_d(i)
+ forall(i = 1:6) coeff(i,:) = coeff2(order(i),:) !/Sdiag_d(i)
  deallocate(coeff2)
  return
 end subroutine fch2qchem_permute_6d
@@ -704,7 +722,7 @@ subroutine fch2qchem_permute_10f(nif,coeff)
  use Sdiag_parameter, only: Sdiag_f
  implicit none
  integer :: i
- integer, parameter :: order(10) = [1, 5, 6, 4, 10, 7, 2, 9, 8, 3]
+ integer, parameter :: order(10) = [1, 5, 4, 2, 6, 10, 9, 7, 8, 3]
  integer, intent(in) :: nif
  real(kind=8), intent(inout) :: coeff(10,nif)
  real(kind=8), allocatable :: coeff2(:,:)
@@ -712,10 +730,10 @@ subroutine fch2qchem_permute_10f(nif,coeff)
 ! To: the order of Cartesian f functions in Q-Chem
 ! 1   2   3   4   5   6   7   8   9   10
 ! XXX,YYY,ZZZ,XYY,XXY,XXZ,XZZ,YZZ,YYZ,XYZ
-! XXX,XXY,XXZ,XYY,XYZ,XZZ,YYY,YYZ,YZZ,ZZZ
+! XXX,XXY,XYY,YYY,XXZ,XYZ,YYZ,XZZ,YZZ,ZZZ
 
  allocate(coeff2(10,nif), source=coeff)
- forall(i = 1:10) coeff(i,:) = coeff2(order(i),:)/Sdiag_f(i)
+ forall(i = 1:10) coeff(i,:) = coeff2(order(i),:) !/Sdiag_f(i)
  deallocate(coeff2)
  return
 end subroutine fch2qchem_permute_10f
@@ -745,16 +763,18 @@ subroutine fch2qchem_permute_15g(nif,coeff)
  implicit none
  integer :: i
  integer, intent(in) :: nif
+ integer, parameter :: order(15) = [15, 14, 12, 9, 5, 13, 11, 8, 4, 10, &
+                                    & 7, 3, 6, 2, 1]
  real(kind=8), intent(inout) :: coeff(15,nif)
  real(kind=8), allocatable :: coeff2(:,:)
 ! From: the order of Cartesian g functions in Gaussian
 ! To: the order of Cartesian g functions in Q-Chem
 ! 1    2    3    4    5    6    7    8    9    10   11   12   13   14   15
 ! ZZZZ,YZZZ,YYZZ,YYYZ,YYYY,XZZZ,XYZZ,XYYZ,XYYY,XXZZ,XXYZ,XXYY,XXXZ,XXXY,XXXX
-! xxxx,xxxy,xxxz,xxyy,xxyz,xxzz,xyyy,xyyz,xyzz,xzzz,yyyy,yyyz,yyzz,yzzz,zzzz
+! xxxx,xxxy,xxyy,xyyy,yyyy,xxxz,xxyz,xyyz,yyyz,xxzz,xyzz,yyzz,xzzz,yzzz,zzzz
 
  allocate(coeff2(15,nif), source=coeff)
- forall(i = 1:15) coeff(i,:) = coeff2(16-i,:)/Sdiag_g(i)
+ forall(i = 1:15) coeff(i,:) = coeff2(order(i),:) !/Sdiag_g(i)
  deallocate(coeff2)
  return
 end subroutine fch2qchem_permute_15g
@@ -784,16 +804,18 @@ subroutine fch2qchem_permute_21h(nif,coeff)
  implicit none
  integer :: i
  integer, intent(in) :: nif
+ integer, parameter :: order(21) = [21, 20, 18, 15, 11, 6, 19, 17, 14, 10, &
+                                    & 5, 16, 13, 9, 4, 12, 8, 3, 7, 2, 1]
  real(kind=8), intent(inout) :: coeff(21,nif)
  real(kind=8), allocatable :: coeff2(:,:)
 ! From: the order of Cartesian h functions in Gaussian
 ! To: the order of Cartesian h functions in Q-Chem
 ! 1     2     3     4     5     6     7     8     9     10    11    12    13    14    15    16    17    18    19    20    21
 ! ZZZZZ,YZZZZ,YYZZZ,YYYZZ,YYYYZ,YYYYY,XZZZZ,XYZZZ,XYYZZ,XYYYZ,XYYYY,XXZZZ,XXYZZ,XXYYZ,XXYYY,XXXZZ,XXXYZ,XXXYY,XXXXZ,XXXXY,XXXXX
-! xxxxx,xxxxy,xxxxz,xxxyy,xxxyz,xxxzz,xxyyy,xxyyz,xxyzz,xxzzz,xyyyy,xyyyz,xyyzz,xyzzz,xzzzz,yyyyy,yyyyz,yyyzz,yyzzz,yzzzz,zzzzz
+! xxxxx,xxxxy,xxxyy,xxyyy,xyyyy,yyyyy,xxxxz,xxxyz,xxyyz,xyyyz,yyyyz,xxxzz,xxyzz,xyyzz,yyyzz,xxzzz,xyzzz,yyzzz,xzzzz,yzzzz,zzzzz
 
  allocate(coeff2(21,nif), source=coeff)
- forall(i = 1:21) coeff(i,:) = coeff2(22-i,:)/Sdiag_h(i)
+ forall(i = 1:21) coeff(i,:) = coeff2(order(i),:) !/Sdiag_h(i)
  deallocate(coeff2)
  return
 end subroutine fch2qchem_permute_21h
