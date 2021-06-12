@@ -118,7 +118,7 @@ i = INDEX(fchname,'.fch',back=.true.)
   write(iout,'(A)') 'fchname='//TRIM(fchname)
   stop
  end if
- q53name = fchname(1:i-1)//'.53'
+ q53name = fchname(1:i-1)//'.q53'
  basename = fchname(1:i-1)
  base_qc = TRIM(basename)//'_qc'
 
