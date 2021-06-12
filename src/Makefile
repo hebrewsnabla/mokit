@@ -50,7 +50,7 @@ OBJ_frag_guess_wfn = file_op.o string_manipulate.o read_fch.o util_wrapper.o \
                      mr_keyword.o do_hf.o rwwfn.o rwgeom.o read_gms_inp.o frag_guess_wfn.o
 OBJ_chk2py = chk2py.f90
 OBJ_fch2py = fch2py.f90
-OBJ_fch2qchem = file_op.o string_manipulate.o fch2qchem.f90 read_fch.o
+OBJ_fch2qchem = file_op.o string_manipulate.o fch2qchem.f90 read_fch.o read_mkl.o
 OBJ_find_mc_pair = file_op.o find_mc_pair.o
 OBJ_gvb_correct_pairs = string_manipulate.o rwwfn.o gvb_correct_pairs.o
 OBJ_gvb_sort_pairs = file_op.o gvb_sort_pairs.o

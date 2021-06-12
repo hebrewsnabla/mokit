@@ -67,6 +67,7 @@ subroutine fch2qchem(fchname)
  use fch_content
  implicit none
  integer :: i, k, length, fchid
+ integer :: isys, system
 ! integer :: ncoeff, nbf, nif
 !f2py intent(in) :: nbf, nif
  integer :: n6dmark,n10fmark,n15gmark,n21hmark
@@ -89,7 +90,7 @@ subroutine fch2qchem(fchname)
 ! character(len=8), parameter :: key1 = 'Alpha MO'
 ! character(len=7), parameter :: key2 = 'Beta MO'
  character(len=240) :: fchname , buffer
- character(len=240) :: q53name, basename, inname 
+ character(len=240) :: q53name, basename, base_qc, inname, mklname 
 !f2py intent(in) :: fchname
 logical, external :: nobasistransform_in_fch, nosymm_in_fch
 
@@ -110,7 +111,8 @@ i = INDEX(fchname,'.fch',back=.true.)
   stop
  end if
  q53name = fchname(1:i-1)//'.53'
- basename = fchname(1:i-1)//'_qc'
+ basename = fchname(1:i-1)
+ base_qc = TRIM(basename)//'_qc'
 
  if(.not. nobasistransform_in_fch(fchname)) then
   write(iout,'(/,A)') REPEAT('-',56)
@@ -355,15 +357,25 @@ endif
  endif
  close(10)
 
+ inname = TRIM(base_qc)//'.in'
+ call create_qchem_in(fchname, inname, charge, mult, natom, elem, coor, uhf, .true.)
  ! Suppose environment var. QCSCRATCH = /tmp/qchem
- !system('mkdir /tmp/qchem/'//TRIM(basename))
- !system('cp '//TRIM(q53name)//' /tmp/qchem/'//TRIM(basename)//'/53.0')
- !system('qchem '//TRIM(basename)//'.in '//TRIM(basename)//'.out '//TRIM(basename))
+ !system('mkdir /tmp/qchem/'//TRIM(base_qc))
+ !system('cp '//TRIM(q53name)//' /tmp/qchem/'//TRIM(base_qc)//'/53.0')
+ !system('qchem '//TRIM(inname)//' '//TRIM(base_qc)//'.out '//TRIM(base_qc))
  ! e.g.  mkdir /tmp/qchem/test_qc
  !       cp test.q53 /tmp/qchem/test_qc/53.0
  !       qchem test_qc.in test_qc.out test_qc
- inname = TRIM(basename)//'.in'
- call create_qchem_in(fchname, inname, charge, mult, natom, elem, coor, uhf, .true.)
+ isys = system('fch2mkl '//TRIM(fchname))
+ if(isys /= 0) then
+  write(iout,'(A)') 'ERROR in subroutine fch2qchem: call fch2mkl failed.'
+  write(iout,'(A)') 'The file '//TRIM(fchname)//' may be incomplete, or MOKIT utility&
+                   & fch2mkl does not exist.'
+  stop
+ end if
+ mklname = TRIM(basename)//'_o.mkl'
+ call mkl2qbas(mklname, inname)
+ isys = system('rm '//TRIM(basename)//'_o.inp '//TRIM(mklname))
  return
 end subroutine fch2qchem
 
@@ -410,12 +422,68 @@ subroutine create_qchem_in(fchname, inname, charge, mult, natom, elem, coor, uhf
  write(fid, '(A)') '$end'
  write(fid, '(A)') ' '
 
- write(fid, '(A)') '$basis'
-!todo
- write(fid, '(A)') '$end'
- write(fid, '(A)') ' '
+! write(fid, '(A)') '$basis'
+! write(fid, '(A)') '$end'
+! write(fid, '(A)') ' '
+ close(fid)
  return
 end subroutine create_qchem_in
+
+subroutine mkl2qbas(mklname, inname)
+ use mkl_content
+ implicit none
+ integer :: fid, i, j, k, nc , nline, ncol
+ integer, parameter :: iout = 6
+ character(len=240), intent(in) :: mklname, inname
+ logical :: uhf
+
+ i = INDEX(mklname,'.',back=.true.)
+ if(i == 0) then
+  write(iout,'(A)') "ERROR in subroutine mkl2gbas: input filename does not&
+                   & contain '.' key!"
+  write(iout,'(A)') 'mklname='//TRIM(mklname)
+  stop
+ end if
+
+ open(newunit=fid,file=TRIM(inname),status='old',position='append')
+ call check_uhf_in_mkl(mklname, uhf)
+ call read_mkl(mklname, uhf, .false.)
+ ! qchem basis head
+ write(fid,'(A)') '$basis'
+ ! print basis set
+ do i = 1, natom, 1
+  write(fid,'(I0,A2)') i, ' 0'
+  nc = all_pg(i)%nc
+
+  do j = 1, nc, 1
+   nline = all_pg(i)%prim_gau(j)%nline
+   ncol = all_pg(i)%prim_gau(j)%ncol
+   write(fid,'(A,2X,I0,A)') all_pg(i)%prim_gau(j)%stype, nline, '  1.00'
+
+   do k = 1, nline, 1
+    select case(ncol)
+    case(2)
+     write(fid,'(2ES20.10)') all_pg(i)%prim_gau(j)%coeff(k,1:2)
+    case(3)
+     write(fid,'(3ES20.10)') all_pg(i)%prim_gau(j)%coeff(k,1:3)
+    case default
+     write(iout,'(A)') 'ERROR in subroutine mkl2gjf: ncol out of range.'
+     write(iout,'(A,I0)') 'ncol=', ncol
+     stop
+    end select
+   end do ! for k
+  end do ! for j
+
+  write(fid,'(A)') '****'
+ end do ! for i
+ deallocate(all_pg)
+ ! print basis set done
+ ! qchem basis end
+ write(fid,'(A)') '$end'
+ write(fid,'(A)') ' '
+ close(fid)
+ return
+end subroutine mkl2qbas 
 
 ! split the 'L' into 'S' and 'P'
 subroutine split_L_func(k, shell_type_, shell2atom_map_, length)
