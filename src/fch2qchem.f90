@@ -13,6 +13,14 @@
 !       turn fch2py into fch2qchem
 !       use read_fch
 !       use F90 instead of F2PY
+!       use fch2mkl -> mkl2qbs to convert basis ( mkl2gjf and mkl2qbs are slightly different!
+ 
+! Usage
+ !  assuming /tmp/qchem is your QCSCRATCH
+ !       fch2qchem test.fch
+ !       mkdir -p /tmp/qchem/test_qc
+ !       cp test.q53 /tmp/qchem/test_qc/53.0
+ !       qchem test_qc.in test_qc.out test_qc
 
 program main
  use fch_content, only: iout
