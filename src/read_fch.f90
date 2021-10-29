@@ -18,6 +18,7 @@ module fch_content
  integer :: natom            ! number of atoms
  integer :: LenNCZ           ! ECP-LenNCZ
  integer, parameter :: iout = 6              ! print id, default on screen
+ integer, parameter :: period_nelem = 112    ! 112 elements, H-Cn
  integer, allocatable :: ielem(:)            ! elements, 6 for 'C', etc
  integer, allocatable :: shell_type(:)       ! Shell types
  integer, allocatable :: prim_per_shell(:)   ! Number of primitives per shell
@@ -39,9 +40,22 @@ module fch_content
  real(kind=8), allocatable :: CLP(:), ZLP(:)    ! ECP-CLP1, ECP-ZLP, size LenNCZ
  character(len=2), allocatable :: elem(:)       ! elements ('H ', 'C ', etc)
 
- integer, parameter :: period_nelem = 112
+ ! Frozen core orbitals used in RHF_proj and dynamic correlation computations.
+ ! This table is copied from the figure in ORCA 5.0.1 manual 9.11 Frozen Core
+ ! Options.
+ ! Note: frozen electrons are two times of the frozen core orbitals
+ integer, parameter :: core_orb(period_nelem) = &
+ (/  0,  0,  0,  0,  1,  1,  1,  1,  1,  1,  1,  1,  5,  5,  5, &
+     5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5, &
+     9,  9,  9,  9,  9,  9,  9,  9, 14, 14, 14, 14, 14, 14, 14, &
+    14, 14, 14, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, &
+    18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 23, 23, 23, 23, 23, &
+    23, 23, 23, 23, 23, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, &
+    34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 50, 50, &
+    50, 50, 50, 50, 50, 50, 50/)
+
  character(len=2), parameter :: period_elem(period_nelem) = &
-  ['H ', 'He', 'Li', 'Be', 'B ', 'C ', 'N ', 'O ', 'F ', 'Ne', &
+ (/'H ', 'He', 'Li', 'Be', 'B ', 'C ', 'N ', 'O ', 'F ', 'Ne', &
    'Na', 'Mg', 'Al', 'Si', 'P ', 'S ', 'Cl', 'Ar', 'K ', 'Ca', &
    'Sc', 'Ti', 'V ', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', &
    'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', 'Rb', 'Sr', 'Y ', 'Zr', &
@@ -52,9 +66,36 @@ module fch_content
    'Tl', 'Pb', 'Bi', 'Po', 'At', 'Rn', 'Fr', 'Ra', 'Ac', 'Th', &
    'Pa', 'U ', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', &
    'Md', 'No', 'Lr', 'Rf', 'Db', 'Sg', 'Bh', 'Hs', 'Mt', 'Ds', &
-   'Rg', 'Cn' ]
+   'Rg', 'Cn'/)
 
 contains
+
+! read the number of electrons from a given .fch file
+subroutine read_ne_from_fch(fchname, ne)
+ implicit none
+ integer :: i, fid
+ integer, intent(out) :: ne
+ character(len=240) :: buf
+ character(len=240), intent(in) :: fchname
+
+ ne = 0
+ open(newunit=fid,file=TRIM(fchname),status='old',position='rewind')
+ do while(.true.)
+  read(fid,'(A)',iostat=i) buf
+  if(i /= 0) exit
+  if(buf(1:14) == 'Number of elec') exit
+ end do ! for while
+
+ close(fid)
+ if(i /= 0) then
+  write(iout,'(A)') "ERROR in subroutine read_ne_from_fch: no 'Number of elec'&
+                   & found in file "//TRIM(fchname)
+  stop
+ end if
+
+ read(buf(50:),*) ne
+ return
+end subroutine read_ne_from_fch
 
 ! check whether UHF-type MOs are hold in a given .fch(k) file
 subroutine check_uhf_in_fch(fchname, uhf)

@@ -30,9 +30,13 @@ module mol
  ! nacte = nacta + nactb
  ! nacta = npair0 + nopen
  ! nactb = npair0
- integer :: natom = 0    ! number of atoms
- integer :: nbgchg = 0   ! number of background point charges
- integer :: nfrag = 0    ! number of fragments
+ integer :: natom = 0      ! number of atoms
+ integer :: nbgchg = 0     ! number of background point charges
+ integer :: nfrag = 0      ! number of fragments
+ integer :: chem_core = 0  ! core orbitals calculated from the array core_orb
+ integer :: ecp_core = 0   ! core orbitals replaced by PP/ECP during computing
+ integer :: scan_itype = 0 ! the type of scanning, 1/2/3 for bond/angle/dihedral
+ integer :: scan_atoms(4)  ! 2/3/4 atoms to be scanned
  integer, allocatable :: nuc(:) ! nuclear charge number
 
  integer, allocatable :: frag_char_mult(:,:)
@@ -44,22 +48,24 @@ module mol
  ! (2) nbf > nif, lin_dep = .True. ;
  ! (3) nbf < nif is impossible.
 
- real(kind=8) :: rhf_e    = 0d0 ! RHF (electronic) energy
- real(kind=8) :: uhf_e    = 0d0 ! UHF energy
- real(kind=8) :: gvb_e    = 0d0 ! GVB energy
- real(kind=8) :: casci_e  = 0d0 ! CASCI/DMRG-CASCI energy
- real(kind=8) :: casscf_e = 0d0 ! CASSCF/DMRG-CASSCF energy
- real(kind=8) :: caspt2_e = 0d0 ! CASPT2/DMRG-CASPT2 energy
- real(kind=8) :: caspt3_e = 0d0 ! CASPT3 energy
- real(kind=8) :: nevpt2_e = 0d0 ! CASSCF-NEVPT2/DMRG-NEVPT2 energy
- real(kind=8) :: nevpt3_e = 0d0 ! CASSCF-NEVPT3 energy
- real(kind=8) :: mrmp2_e  = 0d0 ! MRMP2 energy
- real(kind=8) :: sdspt2_e = 0d0 ! SDSPT2 energy
- real(kind=8) :: davidson_e=0d0 ! Davidson correction energy
- real(kind=8) :: mrcisd_e = 0d0 ! MRCISD+Q energy
- real(kind=8) :: mcpdft_e = 0d0 ! MC-PDFT energy
- real(kind=8) :: ptchg_e  = 0d0 ! Coulomb energy of background point charges
- real(kind=8) :: nuc_pt_e = 0d0 ! nuclear-point_charge interaction energy
+ real(kind=8) :: rhf_e     = 0d0 ! RHF (electronic) energy
+ real(kind=8) :: uhf_e     = 0d0 ! UHF energy
+ real(kind=8) :: gvb_e     = 0d0 ! GVB energy
+ real(kind=8) :: casci_e   = 0d0 ! CASCI/DMRG-CASCI energy
+ real(kind=8) :: casscf_e  = 0d0 ! CASSCF/DMRG-CASSCF energy
+ real(kind=8) :: caspt2_e  = 0d0 ! CASPT2/DMRG-CASPT2 energy
+ real(kind=8) :: caspt3_e  = 0d0 ! CASPT3 energy
+ real(kind=8) :: nevpt2_e  = 0d0 ! CASSCF-NEVPT2/DMRG-NEVPT2 energy
+ real(kind=8) :: nevpt3_e  = 0d0 ! CASSCF-NEVPT3 energy
+ real(kind=8) :: mrmp2_e   = 0d0 ! MRMP2 energy
+ real(kind=8) :: ovbmp2_e  = 0d0 ! OVB-MP2 energy
+ real(kind=8) :: sdspt2_e  = 0d0 ! SDSPT2 energy
+ real(kind=8) :: davidson_e= 0d0 ! Davidson correction energy
+ real(kind=8) :: mrcisd_e  = 0d0 ! MRCISD+Q energy
+ real(kind=8) :: mcpdft_e  = 0d0 ! MC-PDFT energy
+ real(kind=8) :: mrcc_e    = 0d0 ! MRCC energy
+ real(kind=8) :: ptchg_e   = 0d0 ! Coulomb energy of background point charges
+ real(kind=8) :: nuc_pt_e  = 0d0 ! nuclear-point_charge interaction energy
  real(kind=8), allocatable :: coor(:,:)     ! Cartesian coordinates of this molecule
  real(kind=8), allocatable :: grad(:)       ! Cartesian gradient of this molecule, 3*natom
  real(kind=8), allocatable :: bgcharge(:,:) ! background point charges
@@ -85,17 +91,20 @@ module mr_keyword
  ! 4: RHF -> virtual orbital projection -> CASCI/CASSCF -> ...
  ! 5: NOs -> CASCI/CASSCF -> ...
 
- integer :: CtrType = 0              ! 1/2/3 for Uncontracted-/ic-/FIC- MRCI
- integer :: maxM = 1000              ! bond-dimension in DMRG computation
- real(kind=8) :: ON_thres = 0.99999d0! Occupation Number threshold for UNO
+ integer :: CtrType = 0    ! 1/2/3 for Uncontracted-/ic-/FIC- MRCI
+ integer :: maxM = 1000    ! bond-dimension in DMRG computation
+ integer :: scan_nstep = 0 ! number of steps to scan
 
- character(len=4)   :: localm = 'pm'   ! localization method: boys/pm
- character(len=240) :: gjfname = ' '   ! filename of the input .gjf file
- character(len=240) :: chgname = ' '   ! filename of the .chg file (background point charges)
- character(len=240) :: hf_fch = ' '    ! filename of the given .fch(k) file
- character(len=240) :: datname = ' '   ! filename of GAMESS GVB .dat file
- character(len=240) :: casnofch = ' '  ! .fch(k) file of CASCI or CASSCF job
- character(len=8) :: otpdf = 'tPBE'    ! on-top pair density functional
+ real(kind=8) :: ON_thres = 0.99999d0     ! Occupation Number threshold for UNO
+ real(kind=8), allocatable :: scan_val(:) ! values of scanned variables
+
+ character(len=4)   :: localm = 'pm'  ! localization method: boys/pm
+ character(len=240) :: gjfname = ' '  ! filename of the input .gjf file
+ character(len=240) :: chgname = ' '  ! filename of the .chg file (background point charges)
+ character(len=240) :: hf_fch = ' '   ! filename of the given .fch(k) file
+ character(len=240) :: datname = ' '  ! filename of GAMESS GVB .dat file
+ character(len=240) :: casnofch = ' ' ! .fch(k) file of CASCI or CASSCF job
+ character(len=8) :: otpdf = 'tPBE'   ! on-top pair density functional
 
  logical :: mo_rhf  = .false.       ! whether the initial wfn is RHF/UHF for True/False
  ! mo_rhf will be set as .True. in the follwing 3 cases:
@@ -134,9 +143,11 @@ module mr_keyword
  logical :: nevpt2  = .false.
  logical :: nevpt3  = .false.
  logical :: mrmp2   = .false.
+ logical :: ovbmp2  = .false.
  logical :: sdspt2  = .false.
  logical :: mrcisd  = .false.
  logical :: mcpdft  = .false.
+ logical :: mrcc    = .false.
  logical :: CIonly  = .false.      ! whether to optimize orbitals before caspt2/nevpt2/mrcisd
  logical :: dyn_corr= .false.      ! dynamic correlation
  logical :: casscf_force = .false. ! whether to calculate CASSCF force
@@ -144,6 +155,11 @@ module mr_keyword
  logical :: RI = .false.           ! whether to RI approximation in CASSCF, NEVPT2
  logical :: F12 = .false.          ! whether F12 used in NEVPT2, MRCI
  logical :: DLPNO = .false.        ! whether to turn on DLPNO-NEVPT2
+ logical :: pop = .false.          ! whether to perform population analysis
+ logical :: nmr = .false.          ! whether to calcuate nuclear shielding
+ logical :: soc = .false.          ! whether to calcuate spin-orbit coupling (SOC)
+ logical :: rigid_scan = .false.   ! rigid/unrelaxed PES scan
+ logical :: relaxed_scan = .false. ! relaxed PES scan
 
  character(len=10) :: hf_prog      = 'gaussian'
  character(len=10) :: gvb_prog     = 'gamess'
@@ -156,7 +172,7 @@ module mr_keyword
  character(len=10) :: mrmp2_prog   = 'gamess'
  character(len=10) :: mrcisd_prog  = 'openmolcas'
  character(len=10) :: mcpdft_prog  = 'openmolcas'
- character(len=10) :: ic_mrcc_prog = ' '
+ character(len=10) :: mrcc_prog    = 'orca'
 
  character(len=240) :: mokit_root = ' '
  character(len=240) :: gau_path = ' '
@@ -304,9 +320,9 @@ contains
 
   write(iout,'(A)') '----- Output of AutoMR of MOKIT(Molecular Orbital Kit) -----'
   write(iout,'(A)') '        GitLab page: https://gitlab.com/jxzou/mokit'
-  write(iout,'(A)') '                    Author: jxzou'
-  write(iout,'(A)') '                   Version: 1.2.3'
-  write(iout,'(A)') '         (How to cite: read the file Citation.txt)'
+  write(iout,'(A)') '             Author: Jingxiang Zou'
+  write(iout,'(A)') '            Version: 1.2.3 (2021-Sep-13)'
+  write(iout,'(A)') '       (How to cite: read the file Citation.txt)'
 
   hostname = ' '
   data_string = ' '
@@ -420,6 +436,7 @@ contains
    close(fid)
    stop
   end if
+  if(index(buf,'scan') > 0) rigid_scan = .true.
 
   j = index(buf(1:i-1),' ', back=.true.)
   if(j == 0) then
@@ -474,15 +491,15 @@ contains
   end if
 
   select case(TRIM(method))
-  case('mcpdft','mrcisd','sdspt2','mrmp2','caspt3','caspt2','nevpt3','nevpt2',&
-       'casscf','dmrgscf','casci','dmrgci','gvb')
+  case('mcpdft','mrcisd','sdspt2','mrmp2','ovbmp2','caspt3','caspt2','nevpt3',&
+       'nevpt2','casscf','dmrgscf','casci','dmrgci','gvb','mrcc')
    uno = .true.; gvb = .true.
   case default
    write(iout,'(A)') "ERROR in subroutine parse_keyword: specified method '"//&
                      TRIM(method)//"' not supported."
    write(iout,'(A)') 'All supported methods are GVB, CASCI, CASSCF, DMRGCI, &
-                      DMRGSCF, NEVPT2, NEVPT3, CASPT2, CASPT3, MRMP2, MRCISD,&
-                      MCPDFT.'
+                      DMRGSCF, NEVPT2, NEVPT3, CASPT2, CASPT3, MRMP2, OVBMP2,&
+                      MRCISD, MCPDFT, MRCC.'
    stop
   end select
 
@@ -498,6 +515,9 @@ contains
    casscf = .true.
   case('mrmp2')
    mrmp2 = .true.
+   casscf = .true.
+  case('ovbmp2')
+   ovbmp2 = .true.
    casscf = .true.
   case('caspt2')
    caspt2 = .true.
@@ -519,6 +539,9 @@ contains
    casci = .true.
   case('dmrgci')
    dmrgci = .true.
+  case('mrcc')
+   mrcc = .true.
+   casscf = .true.
   case('gvb')
   end select
 
@@ -575,16 +598,13 @@ contains
   end if
 
   j = index(buf,'}')
-  if(j == 7) then ! mokit{}
+  if(j==7 .or. (j>7 .and. LEN_TRIM(buf(7:j-1))==0)) then ! mokit{}
    close(fid)
    return
-  else if(j > 7) then ! mokit{ }
-   if(LEN_TRIM(buf(7:j)) == 0) then ! no keyword specified
-    close(fid)
-    return
-   end if
-  else ! j = 0, keywords written in more than 1 line
+  else if(j == 0) then ! keywords written in more than 1 line
    j = LEN_TRIM(buf) + 1
+  else ! j > 0
+   j = LEN_TRIM(buf)
   end if
 
   longbuf(1:j-7) = buf(7:j-1) ! some keywords specified
@@ -627,14 +647,14 @@ contains
    stop
   end if
 
-  alive1(1:5) = [(index(longbuf,'nmr')>0), (index(longbuf,'opt')>0), (index(longbuf,'freq')>0),&
-               (index(longbuf,'scrf')>0), (index(longbuf,'iop')>0)]
-  if(COUNT(alive1(1:5) .eqv. .true.) > 0) then
+  alive1(1:4) = [(index(longbuf,'opt')>0), (index(longbuf,'freq')>0),&
+                 (index(longbuf,'scrf')>0), (index(longbuf,'iop')>0)]
+  if(COUNT(alive1(1:4) .eqv. .true.) > 0) then
    write(iout,'(/,A)') 'ERROR in subroutine parse_keyword: invalid keyword(s) detected.'
-   write(iout,'(A)') "Currently none of 'opt', 'freq', 'scrf', 'nmr', 'iop' is&
-                    & supported. You can"
-   write(iout,'(A)') 'use the generated *_NO.fch file to perform further calculations&
-                    & with these keywords.'
+   write(iout,'(A)') "Currently none of 'opt', 'freq', 'scrf', 'iop' is suppo&
+                     &rted. You can use the"
+   write(iout,'(A)') 'generated *_NO.fch file to perform further calculations with&
+                    & these keywords in corresponding files.'
    stop
   end if
 
@@ -643,9 +663,9 @@ contains
                  (index(longbuf,'mcpdft_prog')/=0)]
   if(COUNT(alive1(1:5) .eqv. .true.) > 1) then
    write(iout,'(/,A)') "ERROR in subroutine parse_keyword: more than one keyword&
-                      & of 'caspt2_prog', 'nevpt2_prog', 'mrmp2_prog'"
-   write(iout,'(A)') "'mrcisd_prog', 'mcpdft_prog' are detected. Only one can&
-                     & be specified in a job."
+                      & of 'caspt2_prog', 'nevpt2_prog',"
+   write(iout,'(A)') "'mrmp2_prog', 'mrcisd_prog', 'mcpdft_prog' are detected.&
+                     & Only one can be specified in a job."
    stop
   end if
 
@@ -758,8 +778,8 @@ contains
     read(longbuf(j+1:i-1),*) mrcisd_prog
    case('mcpdft_prog')
     read(longbuf(j+1:i-1),*) mcpdft_prog
-   case('ic_mrcc_prog')
-    read(longbuf(j+1:i-1),*) ic_mrcc_prog
+   case('mrcc_prog')
+    read(longbuf(j+1:i-1),*) mrcc_prog
    case('force')
     casscf_force = .true.
    case('charge')
@@ -782,6 +802,8 @@ contains
     read(longbuf(j+1:i-1),*) otpdf
    case('on_thres')
     read(longbuf(j+1:i-1),*) ON_thres
+   case('nmr')
+    nmr = .true.
    case default
     write(iout,'(/,A)') "ERROR in subroutine parse_keyword: keyword '"//longbuf(1:j-1)&
                         //"' not recognized in {}."
@@ -883,17 +905,23 @@ contains
   write(iout,'(5(A,L1,3X))') 'DMRGCI  = ',  dmrgci, 'DMRGSCF = ', dmrgscf,&
        'CASPT2  = ', caspt2, 'NEVPT2  = ',  nevpt2, 'MRMP2   = ', mrmp2
 
-  write(iout,'(5(A,L1,3X))') 'SDSPT2  = ',  sdspt2, 'MRCISD  = ', mrcisd, &
-       'MCPDFT  = ', mcpdft, 'NEVPT3  = ',  nevpt3, 'CASPT3  = ', caspt3
+  write(iout,'(5(A,L1,3X))') 'OVBMP2  = ',  ovbmp2, 'SDSPT2  = ', sdspt2 ,&
+       'MRCISD  = ', mrcisd, 'MCPDFT  = ',  mcpdft, 'NEVPT3  = ', nevpt3
 
-  write(iout,'(5(A,L1,3X))') 'CIonly  = ',  CIonly, 'dyn_corr= ', dyn_corr,&
-       'DKH2    = ', DKH2  , 'X2C     = ',     X2C, 'RI      = ', RI
+  write(iout,'(5(A,L1,3X))') 'CASPT3  = ',  caspt3, 'MRCC    = ', mrcc   ,&
+       'CIonly  = ', CIonly, 'dyn_corr= ',dyn_corr, 'DKH2    = ', DKH2
 
-  write(iout,'(5(A,L1,3X))') 'FIC     = ',     FIC, 'DLPNO   = ', DLPNO, &
-       'F12     = ',    F12, 'TenCycle= ',tencycle, 'HardWFN = ', hardwfn
+  write(iout,'(5(A,L1,3X))') 'X2C     = ',     X2C, 'RI      = ', RI     ,&
+       'FIC     = ', FIC   , 'DLPNO   = ',   DLPNO, 'F12     = ', F12
 
-  write(iout,'(3(A,L1,3X),A,I1,3X,A,I0)') 'CrazyWFN= ',crazywfn,'BgCharge= ',bgchg,&
-       'Ana_Grad= ', casscf_force, 'CtrType = ', CtrType, 'MaxM    = ', maxM
+  write(iout,'(5(A,L1,3X))') 'TenCycle= ',tencycle, 'HardWFN = ', hardwfn,&
+       'CrazyWFN= ',crazywfn,'BgCharge= ',   bgchg, 'Ana_Grad= ', casscf_force
+
+  write(iout,'(5(A,L1,3X))') 'Pop     = ',     pop, 'NMR     = ', nmr, &
+       'SOC     = ', soc    ,'RigidScan=',rigid_scan,'RelaxScan=',relaxed_scan
+
+  write(iout,'(A,I1,3X,A,F7.5,1X,A,I5)') 'CtrType = ', CtrType, &
+       'ON_thres= ',ON_thres, 'MaxM=', maxM
 
   write(iout,'(A)') 'LocalM  = '//TRIM(localm)//'  OtPDF = '//TRIM(otpdf)//'  RIJK_bas='&
        //TRIM(RIJK_bas)//' RIC_bas='//TRIM(RIC_bas)//' F12_cabs='//TRIM(F12_cabs)
@@ -931,6 +959,29 @@ contains
    write(iout,'(A)') error_warn//'ON_thres must be positive.'
    write(iout,'(A,E12.5)') 'Your input ON_thres=', ON_thres
    stop
+  end if
+
+  if(nmr) then
+   if(.not. (casci .or. casscf .or. mrcisd)) then
+    write(iout,'(/,A)') 'ERROR in subroutine parse_keyword: NMR is supposed to&
+                       & be used with one of CASCI/CASSCF/MRCISD'
+    write(iout,'(A)') 'methods. But none of them is requested.'
+    stop
+   end if
+   if(casci) then
+    cas_prog = casci_prog
+   else if(casscf) then
+    cas_prog = casscf_prog
+   else
+    cas_prog = mrcisd_prog
+   end if
+   if(TRIM(cas_prog) /= 'dalton') then
+    write(iout,'(/,A)') 'ERROR in subroutine parse_keyword: NMR can only be&
+                       & calcualted using Dalton program.'
+    write(iout,'(A)') "But it seems currently '"//TRIM(cas_prog)//"' is specified."
+    stop
+   end if
+   cas_prog = ' '
   end if
 
   if(DKH2 .and. X2C) then
@@ -1099,10 +1150,10 @@ contains
   end if
 
   if(CIonly .and. (.not.caspt2) .and. (.not.nevpt2) .and. (.not.mrcisd) .and. &
-     (.not. mcpdft) .and. (.not.caspt3)) then
-   write(iout,'(A)') error_warn//"keyword 'CIonly' can only be used in"
-   write(iout,'(A)') 'CASPT2/CASPT3/NEVPT2/MRCISD/MC-PDFT computations. But none&
-                    & of them is specified.'
+     (.not. mcpdft) .and. (.not.caspt3) .and. (.not.mrcc)) then
+   write(iout,'(/,A)') error_warn//"keyword 'CIonly' can only be used in"
+   write(iout,'(A)') 'CASPT2/CASPT3/NEVPT2/MRCISD/MC-PDFT/MRCC computations. But&
+                    & none of them is specified.'
    stop
   end if
 
@@ -1112,9 +1163,10 @@ contains
    stop
   end if
 
-  if(gvb_prog /= 'gamess') then
-   write(iout,'(A)') error_warn//"only 'gamess' is supported for the GVB computation."
-   write(iout,'(A)') 'User specified GVB program cannot be identified: '//TRIM(gvb_prog)
+  if(.not. (gvb_prog=='gamess' .or. gvb_prog=='gaussian')) then
+   write(iout,'(A)') error_warn//"only 'GAMESS' or 'Gaussian' is supported for"
+   write(iout,'(A)') 'the GVB computation. User specified GVB program cannot be&
+                    & identified: '//TRIM(gvb_prog)
    stop
   end if
 
@@ -1134,7 +1186,7 @@ contains
   end select
 
   select case(TRIM(casci_prog))
-  case('gaussian','gamess','openmolcas','pyscf','orca','molpro','bdf','psi4')
+  case('gaussian','gamess','openmolcas','pyscf','orca','molpro','bdf','psi4','dalton')
   case default
    write(iout,'(A)') error_warn
    write(iout,'(A)') 'User specified CASCI program cannot be identified: '//TRIM(casci_prog)
@@ -1142,7 +1194,7 @@ contains
   end select
 
   select case(TRIM(casscf_prog))
-  case('gaussian','gamess','openmolcas','pyscf','orca','molpro','bdf','psi4')
+  case('gaussian','gamess','openmolcas','pyscf','orca','molpro','bdf','psi4','dalton')
   case default
    write(iout,'(A)') error_warn
    write(iout,'(A)') 'User specified CASSCF program cannot be identified: '//TRIM(casscf_prog)
@@ -1150,7 +1202,7 @@ contains
   end select
 
   select case(TRIM(mrcisd_prog))
-  case('gaussian', 'orca', 'openmolcas', 'molpro','psi4')
+  case('gaussian', 'orca', 'openmolcas', 'molpro','psi4','dalton')
   case default
    write(iout,'(A)') error_warn
    write(iout,'(A)') 'User specified MRCISD program cannot be identified:'//TRIM(mrcisd_prog)
@@ -1199,17 +1251,11 @@ contains
     stop
    end select
 
-   if(mrcisd_prog=='gaussian' .and. CtrType/=1) then
+   if((mrcisd_prog=='gaussian' .or. mrcisd_prog=='psi4' .or. mrcisd_prog=='dalton')&
+      .and. (CtrType/=1)) then
     write(iout,'(A)') error_warn
-    write(iout,'(A,I0)') 'Gaussian can only perform uncontracted MRCISD. But you&
-                        & specify CtrType=', CtrType
-    stop
-   end if
-
-   if(mrcisd_prog=='psi4' .and. CtrType/=1) then
-    write(iout,'(A)') error_warn
-    write(iout,'(A,I0)') 'PSI4 can only perform uncontracted MRCISD. But you&
-                        & specify CtrType=', CtrType
+    write(iout,'(A)') 'Gaussian, PSI4 and Dalton only supports uncontracted MRCISD.'
+    write(iout,'(A,I0)') 'But you specify CtrType=',CtrType
     stop
    end if
 
@@ -1256,9 +1302,10 @@ contains
    stop
   end if
 
-  if(ic_mrcc_prog /= ' ') then
+  if(mrcc_prog /= 'orca') then
    write(iout,'(A)') error_warn
-   write(iout,'(A)') 'Currently AutoMR of MOKIT does not support the ic-MRCC method.'
+   write(iout,'(A)') 'Currently MRCC is only supported by ORCA. But found mrcc_&
+                     &prog='//TRIM(mrcc_prog)
    stop
   end if
 
@@ -1319,6 +1366,11 @@ contains
   end if
 
   write(iout,'(A)') 'Check done. All keywords are compatible.'
+  write(iout,'(/,A)') REPEAT('-',79)
+  write(iout,'(A)') "Note: in any following output which starts with '$' symbol&
+                    &, it is the Shell co-"
+  write(iout,'(A)') '      mmand used to submit the corresponding job.'
+  write(iout,'(A)') REPEAT('-',79)
   return
  end subroutine check_kywd_compatible
 
@@ -1343,7 +1395,6 @@ contains
 
  ! read background point charge(s) from .gjf file
  subroutine read_bgchg_from_gjf(no_coor)
-  use print_id, only: iout
   use mol, only: natom, nbgchg, bgcharge, ptchg_e, nuc_pt_e, nuc, coor
   implicit none
   integer :: i, fid, nblank, nblank0
@@ -1353,9 +1404,17 @@ contains
 
   nblank = 0
   if(no_coor) then ! no Cartesian Coordinates
-   nblank0 = 2
+   if(rigid_scan .or. relaxed_scan) then
+    nblank0 = 3
+   else
+    nblank0 = 2
+   end if
   else             ! there exists Cartesian Coordinates
-   nblank0 = 3
+   if(rigid_scan .or. relaxed_scan) then
+    nblank0 = 4
+   else
+    nblank0 = 3
+   end if
   end if
 
   open(newunit=fid,file=TRIM(gjfname),status='old',position='rewind')
@@ -1368,6 +1427,7 @@ contains
 
   if(i /= 0) then
    write(iout,'(A)') error_warn//'wrong format of background point charges.'
+   close(fid)
    stop
   end if
 
@@ -1380,8 +1440,9 @@ contains
   end do ! for while
 
   if(nbgchg == 0) then
-   write(iout,'(A)') error_warn//'no background point charge(s) found in'
-   write(iout,'(A)') 'file: '//TRIM(gjfname)
+   write(iout,'(A)') error_warn//'no background point charge(s) found'
+   write(iout,'(A)') 'in file '//TRIM(gjfname)
+   close(fid)
    stop
   end if
 
@@ -1399,7 +1460,6 @@ contains
   do i = 1, nbgchg, 1
    read(fid,*) bgcharge(1:4,i)
   end do ! for i
-
   close(fid)
 
   call calc_Coulomb_energy_of_charges(nbgchg, bgcharge, ptchg_e)
@@ -1414,7 +1474,6 @@ contains
   call calc_nuc_pt_e(nbgchg, bgcharge, natom, nuc, coor, nuc_pt_e)
   return
  end subroutine read_bgchg_from_gjf
-
 
 end module mr_keyword
 
@@ -1830,50 +1889,4 @@ subroutine check_exe_exist(path)
  end if
  return
 end subroutine check_exe_exist
-
-! read the path of the Gaussian binary executable file 
-subroutine get_gau_path(gau_path)
- use print_id, only: iout
- implicit none
- integer :: i
- character(len=240), intent(out) :: gau_path
-
- gau_path = ' '
- call getenv('GAUSS_EXEDIR', gau_path)
-
-#ifdef _WIN32
- i = index(gau_path, '\', back=.true.)
- if(i == 0) then
-  write(iout,'(A)') "ERROR in subroutine get_gau_path: no '\' symbol found in&
-                  & gau_path="//TRIM(gau_path)
-  stop
- end if
- gau_path = """"//TRIM(gau_path)//'\g'//gau_path(i+2:i+3)//".exe"""
-
-#else
- i = index(gau_path, ':', back=.true.)
- if(i == 0) then
-  write(iout,'(/,A)') "ERROR in subroutine get_gau_path: no ':' symbol found&
-                     & in gau_path="//TRIM(gau_path)
-  write(iout,'(/,A)') 'This error often occurs when your machine has no (or has&
-                     & incorrect) Gaussian'
-  write(iout,'(A)') 'environment variables. Here I offer an example:'
-  write(iout,'(A)') REPEAT('-',45)
-  write(iout,'(A)') ' export g16root=/opt'
-  write(iout,'(A)') ' source $g16root/g16/bsd/g16.profile'
-  write(iout,'(A)') ' export GAUSS_SCRDIR=/scratch/$USER/gaussian'
-  write(iout,'(A)') REPEAT('-',45)
-  write(iout,'(A)') 'Please check your Gaussian environment variables according&
-                   & to the example shown above.'
-  write(iout,'(A)') "Also: do not write 'export GAUSS_EXEDIR', it is useless."
-  stop
- end if
-
- gau_path = gau_path(i+1:)
- i = index(gau_path, '/', back=.true.)
- gau_path = TRIM(gau_path)//'/'//TRIM(gau_path(i+1:))
-#endif
-
- return
-end subroutine get_gau_path
 

@@ -1,5 +1,14 @@
-MOKIT 1.2.3 (Jun 7, 2021)
+MOKIT 1.2.3 (Sep 13, 2021)
 ------------------------
+* supplement pairs when UNO pairs are not enough
+* compatible keywords and scripts with Molpro 2021 and GAMESS 2021
+* use minimal basis set def2-SVP (in RHF proj) for atoms>Xe, instead of STO-6G
+* create all possible Python APIs in rwgeom.f90
+* add GVB, OVB-MP2 interface of Gaussian
+* add FIC-MRCC interface of ORCA(>=5.0.0)
+* add SAPT0 PSI4 interface in utility frag_guess_wfn
+* add keyword NMR for calculating nuclear shielding constants using Dalton
+* add utilities bas_gms2dal, fch2dal and dal2fch (Gaussian <-> Dalton)
 * put basis sets ANO-RCC-VDZP, ANO-RCC-VTZP and ANO-RCC-VQZP into basis/
 * remove Sdiag in fch2py and py2fch, add write_pyscf_dm_into_fch
 * change generated files of fch2mkl to *_o.inp and *_o.mkl

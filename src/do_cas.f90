@@ -9,7 +9,7 @@ subroutine do_cas(scf)
   datname, nacte_wish, nacto_wish, gvb, casnofch, casci_prog, casscf_prog, &
   dmrgci_prog, dmrgscf_prog, gau_path, gms_path, molcas_path, orca_path, &
   gms_scr_path, molpro_path, bdf_path, psi4_path, bgchg, chgname, casscf_force,&
-  dkh2_or_x2c, check_gms_path, prt_strategy, RI
+  dkh2_or_x2c, check_gms_path, prt_strategy, RI, nmr
  use mol, only: nbf, nif, npair, nopen, npair0, ndb, casci_e, casscf_e, nacta, &
   nactb, nacto, nacte, gvb_e, mult, ptchg_e, nuc_pt_e, natom, grad
  use util_wrapper, only: formchk, unfchk, gbw2mkl, mkl2gbw, fch2inp_wrap, &
@@ -114,8 +114,9 @@ subroutine do_cas(scf)
                    & have to do it, you can manually'
   write(iout,'(A)') 'specify the size of acitve space in .gjf file. For example&
                    & CASSCF(8,8) for methane(CH4).'
-  write(iout,'(A)') 'The maximum of active orbitals is 2*npair. You can find&
-                   & npair in GVB computations above.'
+  write(iout,'(A)') 'The maximum number of active orbitals is 2*npair. You can&
+                   & find npair in GVB computations'
+  write(iout,'(A,I0)') 'above. For this molecule, npair = ', npair
   stop
  end if
  write(iout,'(2(A,I4,4X),A,L1)') 'doubly_occ=', idx1-1, 'nvir=', nvir, 'RIJK= ', RI
@@ -185,9 +186,9 @@ subroutine do_cas(scf)
  i = index(hf_fch, '.fch', back=.true.)
  if(ist==1 .or. ist==3) then
   if(scf) then
-   write(proname,'(A,I0,A)') hf_fch(1:i-1)//'_gvb', npair, '_2CASSCF'
+   write(proname,'(A,I0,A)') hf_fch(1:i-1)//'_gvb', npair, '_CASSCF'
   else
-   write(proname,'(A,I0,A)') hf_fch(1:i-1)//'_gvb', npair, '_2CASCI'
+   write(proname,'(A,I0,A)') hf_fch(1:i-1)//'_gvb', npair, '_CASCI'
   end if
  else if(ist == 2) then
   if(scf) then
@@ -221,9 +222,11 @@ subroutine do_cas(scf)
   write(buf,'(A)') 'python '//TRIM(inpname)//' >'//TRIM(outname)//" 2>&1"
   write(iout,'(A)') '$'//TRIM(buf)
   i = system(TRIM(buf))
-!  write(buf,'(A,2(1X,I0))') 'extract_noon2fch '//TRIM(outname)//' '//&
-!                             TRIM(casnofch), idx1, idx2
-!  i = system(TRIM(buf))
+  if(i /= 0) then
+   write(iout,'(/,A)') 'ERROR in subroutine do_cas: PySCF CASCI/CASSCF job failed.'
+   write(iout,'(A)') 'Please open file '//TRIM(outname)//' and check.'
+   stop
+  end if
 
  case('gaussian')
   call check_exe_exist(gau_path)
@@ -238,8 +241,8 @@ subroutine do_cas(scf)
   write(iout,'(A)') '$'//TRIM(gau_path)//' '//TRIM(inpname)
   i = system(TRIM(gau_path)//' '//TRIM(inpname))
   if(i /= 0) then
-   write(iout,'(/,A)') 'ERROR in subroutine do_cas: Gaussian CAS job failed!'
-   write(iout,'(A)') 'Filename='//TRIM(inpname)
+   write(iout,'(/,A)') 'ERROR in subroutine do_cas: Gaussian CASCI/CASSCF job failed.'
+   write(iout,'(A)') 'Please open file '//TRIM(inpname)//' and check.'
    stop
   end if
   call formchk(mklname, casnofch)
@@ -265,6 +268,11 @@ subroutine do_cas(scf)
   write(buf,'(A,I0,A)') TRIM(inpname)//' 01 ',nproc,' >'//TRIM(outname)//" 2>&1"
   write(iout,'(A)') '$$GMS '//TRIM(buf)
   i = system(TRIM(gms_path)//' '//TRIM(buf))
+  if(i /= 0) then
+   write(iout,'(/,A)') 'ERROR in subroutine do_cas: GAMESS CASCI/CASSCF job failed.'
+   write(iout,'(A)') 'Please open file '//TRIM(outname)//' and check.'
+   stop
+  end if
 
   ! make a copy of the .fch file to save NOs
   if(ist /= 2) then ! datname is a GVB job .dat file
@@ -291,6 +299,11 @@ subroutine do_cas(scf)
   ! transfer NOs from .dat to .fch
   write(buf,'(A,I0)') 'dat2fch '//TRIM(datname)//' '//TRIM(casnofch)//' -no 1 ',idx2
   i = system(TRIM(buf))
+  if(i /= 0) then
+   write(iout,'(/,A)') 'ERROR in subroutine do_cas: failed to call utility dat2fch.'
+   write(iout,'(A)') 'Related files: '//TRIM(datname)//', '//TRIM(casnofch)//'.'
+   stop
+  end if
 
  case('openmolcas')
   call check_exe_exist(molcas_path)
@@ -313,6 +326,11 @@ subroutine do_cas(scf)
   write(buf,'(A)') 'pymolcas '//TRIM(inpname)//' >'//TRIM(outname)//" 2>&1"
   write(iout,'(A)') '$'//TRIM(buf)
   i = system(TRIM(buf))
+  if(i /= 0) then
+   write(iout,'(/,A)') 'ERROR in subroutine do_cas: OpenMolcas CASCI/CASSCF job failed.'
+   write(iout,'(A)') 'Please open file '//TRIM(outname)//' and check.'
+   stop
+  end if
 
   ! make a copy of the .fch file to save NOs
   call copy_file(fchname, casnofch, .false.)
@@ -343,6 +361,11 @@ subroutine do_cas(scf)
   write(buf,'(A)') TRIM(inpname)//' >'//TRIM(outname)//" 2>&1"
   write(iout,'(A)') '$$ORCA '//TRIM(buf)
   i = system(TRIM(orca_path)//' '//TRIM(buf))
+  if(i /= 0) then
+   write(iout,'(/,A)') 'ERROR in subroutine do_cas: ORCA CASCI/CASSCF job failed.'
+   write(iout,'(A)') 'Please open file '//TRIM(outname)//' and check.'
+   stop
+  end if
 
   call copy_file(fchname, casnofch, .false.) ! make a copy to save NOs
   if(scf) then ! CASSCF
@@ -430,6 +453,7 @@ subroutine do_cas(scf)
   i = system(TRIM(buf))
   if(i /= 0) then
    write(iout,'(A)') 'ERROR in subroutine do_cas: PSI4 CASCI/CASSCF job failed.'
+   write(iout,'(A)') 'Please open file '//TRIM(outname)//' and check.'
    stop
   end if
 
@@ -437,10 +461,58 @@ subroutine do_cas(scf)
                              TRIM(casnofch), idx1, idx2
   i = system(TRIM(buf))
 
+ case('dalton')
+  i = system('fch2dal '//TRIM(fchname))
+  i = index(fchname, '.fch', back=.true.)
+  mklname = fchname(1:i-1)//'.dal'
+  pyname  = fchname(1:i-1)//'.mol'
+  inpname = TRIM(proname)//'.dal'
+  xmlname = TRIM(proname)//'.mol'
+  orbname = TRIM(proname)//'.MOPUN'
+  outname = TRIM(proname)//'.out'
+  i = RENAME(TRIM(mklname), TRIM(inpname))
+  i = RENAME(TRIM(pyname), TRIM(xmlname))
+  call prt_cas_dalton_inp(inpname, scf, casscf_force)
+  if(bgchg) i = system('add_bgcharge_to_inp '//TRIM(chgname)//' '//TRIM(inpname))
+
+  write(buf,'(2(A,I0),A)') 'dalton -gb ',mem,' -omp ',nproc,' -ow '//TRIM(proname)&
+                           //' >'//TRIM(proname)//".sout 2>&1"
+  write(iout,'(A)') '$'//TRIM(buf)
+  i = system(TRIM(buf))
+  if(i /= 0) then
+   write(iout,'(A)') 'ERROR in subroutine do_cas: Dalton CASCI/CASSCF job failed.'
+   stop
+  end if
+
+  ! untar/unzip the compressed package
+  i = system('tar -xpf '//TRIM(proname)//'.tar.gz DALTON.MOPUN SIRIUS.RST')
+  call copy_file(fchname, casnofch, .false.) ! make a copy to save NOs
+  i = system('dal2fch DALTON.MOPUN '//TRIM(casnofch)//' -no')
+  if(i /= 0) then
+   write(iout,'(/,A)') 'ERROR in subroutine do_cas: failed to call utility dal2fch.'
+   write(iout,'(A)') 'Please open files DALTON.MOPUN and '//TRIM(casnofch)//&
+                    &' and check.'
+   stop
+  end if
+  orbname = 'DALTON.MOPUN'
+  call delete_file(orbname)
+
+  if(nmr) then
+   call prt_cas_dalton_nmr_inp(inpname, scf)
+   write(buf,'(2(A,I0),A)') 'dalton -gb ',mem,' -omp ',nproc," -put ""SIRIUS.RST""&
+    & -ow "//TRIM(proname)//' >'//TRIM(proname)//".sout 2>&1"
+   write(iout,'(A)') '$'//TRIM(buf)
+   i = system(TRIM(buf))
+   if(i /= 0) then
+    write(iout,'(A)') 'ERROR in subroutine do_cas: Dalton CASSCF NMR job failed.'
+    stop
+   end if
+  end if
+
  case default
   write(iout,'(A)') 'ERROR in subroutine do_cas: Allowed programs are Gaussian&
-                   & Gaussian, GAMESS, PySCF, OpenMolcas'
-  write(iout,'(A)') 'ORCA, Molpro, BDF and PSI4. But got CAS_prog='//TRIM(cas_prog)
+                   & Gaussian, GAMESS, PySCF, OpenMolcas,'
+  write(iout,'(A)') 'ORCA, Molpro, BDF, PSI4 and Dalton. But got CAS_prog='//TRIM(cas_prog)
   stop
  end select
 
@@ -448,13 +520,6 @@ subroutine do_cas(scf)
  ! Note: density in .fch of Gaussian CASSCF job is wrong (Gaussian bug), I have
  !  to re-generate density
  if(TRIM(cas_prog) /= 'pyscf') call update_density_using_no_and_on(casnofch)
-
- ! i is 'extract NOONs from the output file and print them into .fch file'
- if(i /= 0) then
-  write(iout,'(A)') 'Warning in subroutine do_cas: possibly extract_noon2fch failed.&
-                   & Filename = '//TRIM(outname)
-  write(iout,'(A)') 'This does not affect the CASCI/CASSCF energy. So continue.'
- end if
 
  if(ist == 2) then
   i = index(hf_fch, '.fch', back=.true.)
@@ -1131,4 +1196,116 @@ subroutine prt_cas_psi4_inp(inpname, scf, force)
  write(fid,'(A)') "fchk(cas_wfn,'"//TRIM(casnofch)//"')"
  return
 end subroutine prt_cas_psi4_inp
+
+! print CASCI/CASSCF keywords into a given Dalton input file
+subroutine prt_cas_dalton_inp(inpname, scf, force)
+ use print_id, only: iout
+ use mol, only: mult, ndb, npair, npair0, nacto, nacte
+ implicit none
+ integer :: i, nclosed, fid, fid1, RENAME
+ character(len=240) :: buf, inpname1
+ character(len=240), intent(in) :: inpname
+ logical, intent(in) :: scf, force
+
+ inpname1 = TRIM(inpname)//'.t'
+ nclosed = ndb + npair - npair0
+
+ open(newunit=fid1,file=TRIM(inpname1),status='replace')
+ write(fid1,'(A)') '**DALTON INPUT'
+ write(fid1,'(A)') '.RUN WAVE FUNCTION'
+ write(fid1,'(A,/,A)') '**WAVE FUNCTIONS','.HF'
+ if(scf) then
+  write(fid1,'(A)') '.MCSCF'
+ else
+  write(fid1,'(A)') '.CI'
+ end if
+ write(fid1,'(A,/,A)') '*SCF INPUT','.NODIIS'
+ write(fid1,'(A,/,A)') '.NOQCSCF','.NONCANONICAL'
+ write(fid1,'(A,/,A)') '*CONFIGURATION INPUT', '.SPIN MULTIPLICITY'
+ write(fid1,'(I0)') mult
+ write(fid1,'(A,/,I0)') '.INACTIVE ORBITALS', nclosed
+ write(fid1,'(A,/,I0)') '.CAS SPACE', nacto
+ write(fid1,'(A,/,I0)') '.ELECTRONS', nacte
+ if(scf) then
+  write(fid1,'(A)') '*OPTIMIZATION'
+  write(fid1,'(A,/,A)') '.MAX CI','500'
+  write(fid1,'(A,/,A)') '.MAX MACRO ITERATIONS','50'
+  write(fid1,'(A,/,A)') '.MAX MICRO ITERATIONS','200'
+ else
+  write(fid1,'(A)') '*CI INPUT'
+  write(fid1,'(A,/,A)') '.MAX ITERATIONS','500'
+ end if
+ write(fid1,'(A,/,A)') '*PRINT LEVELS', '.CANONI'
+
+ open(newunit=fid,file=TRIM(inpname),status='old',position='rewind')
+ do while(.true.)
+  read(fid,'(A)') buf
+  if(buf(1:12) == '*ORBITAL INP') exit
+ end do ! for while
+
+ BACKSPACE(fid)
+ do while(.true.)
+  read(fid,'(A)',iostat=i) buf
+  if(i /= 0) exit
+  if(buf(1:12) == '**END OF INP') exit
+  write(fid1,'(A)') TRIM(buf)
+ end do ! for while
+
+ if(i /= 0) then
+  write(iout,'(A)') "ERROR in subroutine prt_cas_dalton_inp: no '**END OF INP'&
+                   & found in"
+  write(iout,'(A)') 'file '//TRIM(inpname)//'.'
+  close(fid1,status='delete')
+  close(fid)
+  stop
+ end if
+
+ write(fid1,'(A)') '**END OF INPUT'
+ close(fid,status='delete')
+ close(fid1)
+ i = RENAME(TRIM(inpname1), TRIM(inpname))
+ return
+end subroutine prt_cas_dalton_inp
+
+! print CASSCF NMR keywords into a given Dalton input file
+subroutine prt_cas_dalton_nmr_inp(inpname, scf)
+ use print_id, only: iout
+ use mol, only: mult, ndb, npair, npair0, nacto, nacte
+ use mr_keyword, only: nmr
+ implicit none
+ integer :: i, nclosed, fid
+ character(len=240) :: buf
+ character(len=240), intent(in) :: inpname
+ logical, intent(in) :: scf
+
+ if(.not. nmr) then
+  write(iout,'(A)') 'ERROR in subroutine prt_cas_dalton_nmr_inp: NMR=.F.'
+  stop
+ end if
+ if(.not. scf) then
+  write(iout,'(A)') 'ERROR in subroutine prt_cas_dalton_nmr_inp: NMR under&
+                   & CASCI not supported currently.'
+  stop
+ end if
+
+ nclosed = ndb + npair - npair0
+ open(newunit=fid,file=TRIM(inpname),status='replace')
+ write(fid,'(A)') '**DALTON INPUT'
+ write(fid,'(A)') '.RUN PROPERTIES'
+ write(fid,'(A,/,A)') '**WAVE FUNCTIONS','.MCSCF'
+ write(fid,'(A,/,A)') '*CONFIGURATION INPUT', '.SPIN MULTIPLICITY'
+ write(fid,'(I0)') mult
+ write(fid,'(A,/,I0)') '.INACTIVE ORBITALS', nclosed
+ write(fid,'(A,/,I0)') '.CAS SPACE', nacto
+ write(fid,'(A,/,I0)') '.ELECTRONS', nacte
+ write(fid,'(A)') '*OPTIMIZATION'
+ write(fid,'(A,/,A)') '.MAX CI','500'
+ write(fid,'(A,/,A)') '.MAX MICRO ITERATIONS','200'
+ write(fid,'(A)') '*ORBITAL INPUT'
+ write(fid,'(A,/,A)') '.MOSTART','NEWORB'
+ write(fid,'(A,/,A)') '**PROPERTIES','.SHIELD'
+ write(fid,'(A)') '**END OF INPUT'
+ close(fid)
+ return
+end subroutine prt_cas_dalton_nmr_inp
 

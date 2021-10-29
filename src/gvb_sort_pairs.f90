@@ -41,8 +41,8 @@ program main
   write(iout,'(/,A)') 'ERROR in subroutine gvb_sort_pairs: nif>nbf. Impossible!'
   stop
  end if
- if(npair <= 0) then
-  write(iout,'(/,A)') 'ERROR in subroutine gvb_sort_pairs: npair<=0. Not allowed!'
+ if(npair < 0) then
+  write(iout,'(/,A)') 'ERROR in subroutine gvb_sort_pairs: npair<0. Not allowed!'
   write(iout,'(A,I0)') 'npair=', npair
   stop
  end if
@@ -67,7 +67,9 @@ subroutine gvb_sort_pairs(datname, nbf, nif, nocc, nopen, npair)
  str1 = ' '
  str2 = ' '
  buf = ' '
- fname = ' '
+ i = index(datname,'.dat')
+ if(i == 0) i = index(datname,'.inp')
+ fname = datname(1:i-1)//'_s.dat'
 
  if(nocc+nopen+2*npair > nif) then
   write(iout,'(A)') 'ERROR in subroutine gvb_sort_pairs: (nocc+nopen+2*npair)>nif!'
@@ -75,8 +77,14 @@ subroutine gvb_sort_pairs(datname, nbf, nif, nocc, nopen, npair)
   stop
  end if
 
- open(newunit=datid,file=TRIM(datname),status='old',position='rewind')
+ if(npair == 0) then
+  write(iout,'(A)') 'Warning in subroutine gvb_sort_pairs: npair=0. High spin&
+                   & ROHF wfn assumed.'
+  call copy_file(datname, fname, .false.)
+  return
+ end if
 
+ open(newunit=datid,file=TRIM(datname),status='old',position='rewind')
  ! find pair coefficients
  do while(.true.)
   read(datid,'(A)',iostat=i) buf
@@ -92,7 +100,7 @@ subroutine gvb_sort_pairs(datname, nbf, nif, nocc, nopen, npair)
 
  ! read pair coefficients
  BACKSPACE(datid)
- allocate(pair_coeff(2,npair), source=0.0d0)
+ allocate(pair_coeff(2,npair), source=0d0)
  do i = 1, npair, 1
   read(datid,'(A)') buf
   k = index(buf,'=')
@@ -181,9 +189,6 @@ subroutine gvb_sort_pairs(datname, nbf, nif, nocc, nopen, npair)
  if(allocated(tmp_coeff2)) deallocate(tmp_coeff2)
 
  open(newunit=datid,file=TRIM(datname),status='old',position='rewind')
- i = index(datname,'.dat')
- if(i == 0) i = index(datname,'.inp')
- fname = datname(1:i-1)//'_s.dat'
  open(newunit=fid,file=TRIM(fname),status='replace')
  ! copy information before the 'CICOEF('
  do while(.true.)
@@ -194,12 +199,12 @@ subroutine gvb_sort_pairs(datname, nbf, nif, nocc, nopen, npair)
 
  ! print sorted pair coefficients into a new file
  if(buf(2:5) == '$SCF') then
-  write(fid,'(1X,2(A,F12.8))') '$SCF    CICOEF(  1)=', pair_coeff(1,1), ',', pair_coeff(2,1)
+  write(fid,'(1X,2(A,F14.10))') '$SCF    CICOEF(  1)=', pair_coeff(1,1), ',', pair_coeff(2,1)
  else
-  write(fid,'(9X,2(A,F12.8))') 'CICOEF(  1)=', pair_coeff(1,1), ',', pair_coeff(2,1)
+  write(fid,'(3X,2(A,F14.10))') 'CICOEF(  1)=', pair_coeff(1,1), ',', pair_coeff(2,1)
  end if
  do i = 2, npair, 1
-  write(fid,'(9X,A,I3,2(A,F12.8))') 'CICOEF(',2*i-1,')=',pair_coeff(1,i),',',pair_coeff(2,i)
+  write(fid,'(3X,A,I3,2(A,F14.10))') 'CICOEF(',2*i-1,')=',pair_coeff(1,i),',',pair_coeff(2,i)
  end do
  write(fid,'(1X,A)') '$END'
  ! print done
