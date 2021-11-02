@@ -4,20 +4,23 @@
 BIN = ../bin
 
 # --- gfortran ---
-#F90    = gfortran
-#FFLAGS = -O2 -cpp
-#MKL_FLAGS = -lmkl_rt
-#F2PY   = f2py
-#F2_FLAGS =
-#F2_MKL_FLAGS = --link-lapack_opt
+F90    = gfortran
+FFLAGS = -O2 -cpp
+MKL_FLAGS = -lmkl_rt
+F2PY   = f2py
+F2_FLAGS =
+F2_MKL_FLAGS = --link-lapack_opt
 
 # --- ifort ----
-F90    = ifort
-FFLAGS = -O2 -fpp -traceback
-MKL_FLAGS = -mkl
-F2PY   = f2py
-F2_FLAGS = --fcompiler=intelem --compiler=intelem
-F2_MKL_FLAGS = --link-lapack_opt
+#F90    = ifort
+#FFLAGS = -O2 -fpp -traceback
+#MKL_FLAGS = -mkl
+#F2PY   = f2py
+#F2_FLAGS = --fcompiler=intelem --compiler=intelem
+#F2_MKL_FLAGS = --link-lapack_opt
+
+HDF5_PATH = /share/home/srwang/qchem/hdf5-1.10.8/hdf5
+HDF5_FLAG = -I$(HDF5_PATH)/include -L$(HDF5_PATH)/lib -lhdf5_fortran -lhdf5
 
 OBJ_add_bgcharge_to_inp = file_op.o string_manipulate.o read_gms_inp.o add_bgcharge_to_inp.o
 OBJ_align_orbitals = rwwfn.o align_orbitals.o
@@ -56,6 +59,7 @@ OBJ_frag_guess_wfn = file_op.o string_manipulate.o read_fch.o util_wrapper.o \
 OBJ_chk2py = chk2py.f90
 OBJ_fch2py = fch2py.f90
 OBJ_fch2qchem = file_op.o string_manipulate.o fch2qchem.f90 read_fch.o read_mkl.o
+OBJ_fch2rust = file_op.o string_manipulate.o fch2rust.f90 read_fch.o read_mkl.o hdf5_utils.o
 OBJ_find_mc_pair = file_op.o find_mc_pair.o
 OBJ_gvb_correct_pairs = string_manipulate.o rwwfn.o gvb_correct_pairs.o
 OBJ_gvb_sort_pairs = file_op.o gvb_sort_pairs.o
@@ -87,6 +91,9 @@ OBJ_excited = excited.f90
         fch_u2r fch_mo_copy find_mc_pair gvb_correct_pairs gvb_sort_pairs mkl2fch \
         mkl2gjf orb2fch replace_xyz_in_inp xml2fch mo_svd mo_svd_format solve_ON_matrix \
         rwgeom rwwfn excited
+
+hdf5_utils.o: hdf5_utils.f90
+	$(F90) -c $< -o $@ $(FFLAGS) $(HDF5_FLAG)
 
 %.o: %.f90
 	$(F90) -c $< -o $@ $(FFLAGS)
@@ -230,6 +237,9 @@ fch2py: $(OBJ_fch2py)
 
 fch2qchem: $(OBJ_fch2qchem)
 	$(F90) $(OBJ_fch2qchem) -o $(BIN)/fch2qchem $(FFLAGS)
+
+fch2rust: $(OBJ_fch2rust)
+	$(F90) $(OBJ_fch2rust) -o $(BIN)/fch2rust $(FFLAGS) $(HDF5_FLAG)
 
 find_mc_pair: $(OBJ_find_mc_pair)
 	$(F90) $(OBJ_find_mc_pair) -o $(BIN)/find_mc_pair $(FFLAGS)

@@ -70,6 +70,7 @@ end module Sdiag_parameter
 !  of Gaussian to that of libcint
 subroutine fch2rust(fchname)
  use fch_content
+ use hdf5_utils
  implicit none
  integer :: i, k, length, fchid
  integer :: isys, system
@@ -99,6 +100,7 @@ subroutine fch2rust(fchname)
 !f2py intent(in) :: fchname
 logical, external :: nobasistransform_in_fch, nosymm_in_fch
 
+integer(HID_T) :: file_id, group_id
 ! key = ' '
 
  buffer = ' '
@@ -359,21 +361,35 @@ endif
 
  deallocate(d_mark, f_mark, g_mark, h_mark)
 
- open(10, file=q53name,access='stream')
- write(10) alpha_coeff
- if (uhf) then
-   write(10) beta_coeff
- else
-   ! libcint requires RHF has duplicated ab coeffs
-   write(10) alpha_coeff
- endif 
- write(10) eigen_e_a
- if (uhf) then
-   write(10) eigen_e_b
- else
-   write(10) eigen_e_a
- endif
- close(10)
+
+! open(10, file=q53name,access='stream')
+! write(10) alpha_coeff
+! if (uhf) then
+!   write(10) beta_coeff
+! else
+!   ! libcint requires RHF has duplicated ab coeffs
+!   write(10) alpha_coeff
+! endif 
+! write(10) eigen_e_a
+! if (uhf) then
+!   write(10) eigen_e_b
+! else
+!   write(10) eigen_e_a
+! endif
+! close(10)
+    
+    ! open file
+    call hdf_open_file(file_id, q53name, STATUS='NEW')
+    
+    ! absolute access
+    call hdf_create_group(file_id, "scf")
+    call hdf_open_group(file_id, "scf", group_id)
+    call hdf_write_dataset(group_id, "e_tot", 0.0d0)
+    call hdf_write_dataset(group_id, "mo_coeff", alpha_coeff)
+    call hdf_close_group(group_id)
+    
+    ! close file
+    call hdf_close_file(file_id)
 
 !!! Generate input file and basis, currently disabled
 !!!
